@@ -842,6 +842,7 @@ function connect() {
   client.on("reconnect", function () {
     if (me !== client) { return; }
     dbgStat.reconnects++;
+    startedAt = Date.now();
     dbg("w", "서버에 다시 연결 시도 중… (" + dbgStat.reconnects + "번째)");
     setNet("mid", "다시 연결 중…");
   });
@@ -874,8 +875,13 @@ function connect() {
     var msg = payload.toString().trim();
     var retained = packet && packet.retain;
     if (t === topic("cmd")) {
-      dbgStat.msgsCmdEcho++;
-      dbg("i", "내가 보낸 명령이 서버를 거쳐 돌아옴: \"" + msg + "\" (서버 왕복 OK)");
+      if (Date.now() - lastCmdSentAt < 5000) {
+        dbgStat.msgsCmdEcho++;
+        lastCmdSentAt = 0;
+        dbg("i", "내가 보낸 명령이 서버를 거쳐 돌아옴: \"" + msg + "\" (서버 왕복 OK)");
+      } else {
+        dbg("w", "다른 웹앱(다른 탭·PC·휴대폰)이 이 보관함에 보낸 명령: \"" + msg + "\" — 마이크로비트 신호 아님");
+      }
       return;
     }
     if (t === topic("debug")) {
@@ -937,6 +943,7 @@ function explainErr(err) {
 function send(cmd) {
   if (client && client.connected) {
     dbgStat.sent++;
+    lastCmdSentAt = Date.now();
     dbg("i", "명령 보냄 → " + topic("cmd") + " = \"" + cmd + "\"");
     client.publish(topic("cmd"), cmd, function (err) {
       if (err) { dbg("e", "명령 보내기 실패: " + cmd, err); }
@@ -1055,6 +1062,7 @@ if ("serviceWorker" in navigator) {
 
 // ---------------- 디버그 화면 ----------------
 var dbgTest = null;
+var lastCmdSentAt = 0;
 function dbgSummary() {
   var c = client && client.connected;
   var gap = lastSeen ? Math.round((Date.now() - lastSeen) / 1000) : -1;

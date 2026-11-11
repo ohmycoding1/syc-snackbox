@@ -3,154 +3,203 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1b2a49">
+<meta name="theme-color" content="#141f38">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>도난 방지 간식 보관함</title>
+<title>간식금고</title>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #1b2a49; --bg2: #243660; --fg: #fff8e7; --muted: #a9b7d6; --panel: #2b3f70; --line: #46609c;
-  --yellow: #ffc93c; --mint: #5eead4; --alarm: #ff4d5e; --alarm-bg: #4a1626; --green: #4ade80;
+  --bg: #141f38; --bg2: #1b2a49; --surface: #22335a; --surface2: #2b3f70; --line: #34497d;
+  --fg: #fff8e7; --muted: #9fb0d4; --yellow: #ffc93c; --mint: #5eead4; --alarm: #ff4d5e; --green: #4ade80; --violet: #c4b5fd;
+  --bar-h: 64px; --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
 }
-* { box-sizing: border-box; }
-html { height: 100%; background: #1b2a49; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; background: var(--bg); }
 body {
-  margin: 0; min-height: 100%;
-  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: radial-gradient(circle at 50% -10%, var(--bg2), var(--bg) 60%) fixed;
-  color: var(--fg); font-family: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-  display: flex; justify-content: center;
+  margin: 0; min-height: 100%; background: var(--bg); color: var(--fg);
+  font-family: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  overscroll-behavior-y: none; -webkit-user-select: none; user-select: none;
 }
-body.alarm { background: radial-gradient(circle at 50% 30%, #7a1f33, var(--alarm-bg) 65%) fixed; }
-main { width: 100%; max-width: 460px; padding: 18px 18px 44px; }
-.snacks { text-align: center; font-size: 24px; letter-spacing: 6px; }
-h1 { font-size: 28px; margin: 4px 0 6px; text-align: center; color: var(--yellow); text-shadow: 0 3px 0 #0006; }
+body.alarm { background: #2a0f1c; }
+.hidden { display: none !important; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
 
-/* 연결 상태 줄 */
-.conn { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--muted); margin-bottom: 14px; }
-.conn span { display: inline-flex; align-items: center; gap: 6px; }
-.conn i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #888; }
-.conn i.on { background: var(--mint); box-shadow: 0 0 0 4px #5eead433; }
-.conn i.mid { background: var(--yellow); }
-.conn i.off { background: var(--alarm); }
+/* ---------- 상단 바 ---------- */
+.appbar {
+  position: sticky; top: 0; z-index: 20; padding: calc(10px + var(--safe-t)) 16px 10px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid #ffffff10;
+}
+.appbar .in { max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+.appbar h1 { flex: 1; margin: 0; font-size: 21px; font-weight: normal; color: var(--yellow); white-space: nowrap; }
+.appbar h1 span { font-size: 18px; margin-right: 4px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  background: var(--surface); font-size: 12px; color: var(--muted); max-width: 180px;
+}
+.chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #66779e; }
+.chip i.on { background: var(--mint); box-shadow: 0 0 0 3px #5eead433; }
+.chip i.mid { background: var(--yellow); }
+.chip i.off { background: var(--alarm); }
 
-/* 금고 */
-.status { text-align: center; padding: 4px 0 4px; }
+/* ---------- 화면(탭) ---------- */
+main { max-width: 520px; margin: 0 auto; padding: 14px 16px calc(var(--bar-h) + var(--safe-b) + 24px); }
+.page { display: none; animation: fade .18s ease-out; }
+.page.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+.page-title { font-size: 22px; margin: 4px 2px 12px; font-weight: normal; }
+
+/* ---------- 카드 · 섹션 ---------- */
+.card { background: var(--surface); border-radius: 22px; padding: 16px; margin-bottom: 14px; }
+.sec { font-size: 13px; color: var(--muted); margin: 18px 6px 8px; }
+.sec:first-child { margin-top: 4px; }
+.group { background: var(--surface); border-radius: 18px; overflow: hidden; margin-bottom: 6px; }
+.item { display: flex; align-items: center; gap: 12px; padding: 13px 16px; min-height: 52px; border-bottom: 1px solid #ffffff0d; }
+.item:last-child { border-bottom: 0; }
+.item .ic { font-size: 20px; width: 26px; text-align: center; flex: none; }
+.item .tx { flex: 1; min-width: 0; font-size: 16px; }
+.item .tx small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.item .val { color: var(--muted); font-size: 14px; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+label.item { cursor: pointer; }
+
+/* 스위치 */
+.sw { appearance: none; -webkit-appearance: none; flex: none; width: 50px; height: 30px; border-radius: 999px; background: #44557e; position: relative; transition: background .2s; cursor: pointer; margin: 0; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 2px 4px #0004; }
+.sw:checked { background: var(--green); }
+.sw:checked::after { transform: translateX(20px); }
+
+/* ---------- 버튼 ---------- */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  border: 0; border-radius: 16px; padding: 15px 12px; font-size: 17px;
+  background: var(--yellow); color: #1b2a49; transition: transform .08s, opacity .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn.ghost { background: var(--surface2); color: var(--fg); }
+.btn.danger { background: #ff4d5e22; color: #ff8a96; }
+.btn.sm { padding: 11px 10px; font-size: 15px; border-radius: 13px; }
+.btn:disabled { opacity: .38; transform: none; cursor: default; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+.mt { margin-top: 10px; }
+
+/* ---------- 홈: 금고 ---------- */
+.hero { text-align: center; padding: 22px 16px 18px; }
 .vault {
-  width: 210px; height: 210px; margin: 0 auto; border-radius: 50%; padding: 14px;
-  background: conic-gradient(#8c99b8, #dfe6f5, #8c99b8, #dfe6f5, #8c99b8); box-shadow: 0 10px 0 #0005;
+  width: 168px; height: 168px; margin: 0 auto; border-radius: 50%; padding: 11px;
+  background: conic-gradient(#8c99b8, #dfe6f5, #8c99b8, #dfe6f5, #8c99b8); box-shadow: 0 8px 0 #0004;
 }
 .door {
-  width: 100%; height: 100%; border-radius: 50%; border: 6px solid #1b2a49;
+  width: 100%; height: 100%; border-radius: 50%; border: 5px solid var(--bg2);
   background: radial-gradient(circle at 35% 30%, #4a5f93, #2b3f70);
-  display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 6px var(--mint);
+  display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 5px var(--mint);
   transition: box-shadow .3s, background .3s;
 }
-.icon { font-size: 68px; line-height: 1; }
-.status.alarm .door { box-shadow: inset 0 0 0 6px var(--alarm); background: radial-gradient(circle at 35% 30%, #a8283c, #5a1427); }
+.icon { font-size: 56px; line-height: 1; }
+.status.alarm .door { box-shadow: inset 0 0 0 5px var(--alarm); background: radial-gradient(circle at 35% 30%, #a8283c, #5a1427); }
 .status.alarm .vault { animation: shake .4s 4, glow 1s infinite; }
-.status.open .door { box-shadow: inset 0 0 0 6px var(--yellow); }
-.status.setup .door { box-shadow: inset 0 0 0 6px #c4b5fd; }
-.status.off .door { box-shadow: inset 0 0 0 6px var(--line); }
-.state { font-size: 28px; margin: 16px 0 2px; color: var(--mint); }
+.status.open .door { box-shadow: inset 0 0 0 5px var(--yellow); }
+.status.setup .door { box-shadow: inset 0 0 0 5px var(--violet); }
+.status.off .door { box-shadow: inset 0 0 0 5px var(--line); }
+.state { font-size: 26px; margin: 16px 0 2px; color: var(--mint); }
 .status.alarm .state { color: #ff8a96; }
 .status.open .state { color: var(--yellow); }
-.status.setup .state { color: #c4b5fd; }
+.status.setup .state { color: var(--violet); }
 .status.off .state { color: var(--muted); }
-.time { color: var(--muted); font-size: 15px; min-height: 20px; }
-
-/* 비밀번호 입력 진행 */
-.dots { display: flex; justify-content: center; gap: 12px; margin: 14px 0 4px; }
-.dots b { width: 18px; height: 18px; border-radius: 50%; background: var(--panel); border: 2px solid var(--line); transition: all .15s; }
+.time { color: var(--muted); font-size: 13px; min-height: 18px; }
+.dots { display: flex; justify-content: center; gap: 12px; margin: 16px 0 6px; }
+.dots b { width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 2px solid var(--line); transition: all .15s; }
 .dots b.fill { background: var(--yellow); border-color: var(--yellow); transform: scale(1.2); box-shadow: 0 0 12px #ffc93c88; }
-.dotsTxt { text-align: center; font-size: 14px; color: var(--muted); min-height: 20px; }
+.dotsTxt { font-size: 13px; color: var(--muted); min-height: 18px; }
 .dotsTxt.active { color: var(--yellow); }
 
-/* 숫자 */
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
-.stat { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 10px 8px; text-align: center; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border-radius: 18px; padding: 12px 8px; text-align: center; }
 .stat b { display: block; font-size: 26px; font-weight: normal; }
-.stat span { font-size: 13px; color: var(--muted); }
+.stat span { font-size: 12px; color: var(--muted); }
 .stat.ok b { color: var(--green); }
 .stat.bad b { color: #ff8a96; }
 
-/* 버튼 */
-.row { display: flex; gap: 10px; margin-top: 14px; }
-button {
-  font: inherit; font-size: 17px; border: 0; border-radius: 16px; padding: 14px 8px; cursor: pointer; flex: 1;
-  background: var(--yellow); color: #1b2a49; box-shadow: 0 5px 0 #b88a00;
-}
-button:active { transform: translateY(4px); box-shadow: 0 1px 0 #b88a00; }
-button.ghost { background: var(--panel); color: var(--fg); box-shadow: 0 5px 0 #14213d; }
-button.ghost:active { box-shadow: 0 1px 0 #14213d; }
-button:disabled { opacity: .45; cursor: default; transform: none; }
-button:focus-visible, input:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
-
-/* 카드 */
-.card { background: var(--panel); border-radius: 20px; padding: 4px 16px 16px; margin-top: 20px; border: 2px solid var(--line); }
-h2 { font-size: 19px; margin: 16px 0 6px; color: var(--yellow); font-weight: normal; }
-h3 { font-size: 15px; margin: 16px 0 4px; color: var(--muted); font-weight: normal; }
-label.f { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
-input[type=text] { width: 100%; font: inherit; font-size: 16px; padding: 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--fg); }
-.tg { display: flex; align-items: center; gap: 10px; padding: 8px 4px; font-size: 16px; cursor: pointer; }
-.tg input { width: 20px; height: 20px; accent-color: var(--yellow); flex: none; }
-.tg small { display: block; font-size: 12px; color: var(--muted); }
-ul { list-style: none; margin: 0; padding: 0; background: var(--bg); border-radius: 14px; max-height: 320px; overflow-y: auto; }
-li { padding: 11px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; font-size: 15px; }
-li:last-child { border-bottom: 0; }
-li.empty { color: var(--muted); }
-li span:last-child { color: var(--muted); font-size: 13px; white-space: nowrap; }
-.hidden { display: none; }
 .hint {
-  margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: #ffc93c22; border: 2px solid var(--yellow);
-  font-size: 15px; line-height: 1.5; color: var(--fg);
+  margin-bottom: 14px; padding: 14px 16px; border-radius: 18px; background: #ffc93c1a; border: 1.5px solid #ffc93c88;
+  font-size: 14px; line-height: 1.6;
 }
 .hint b { color: var(--yellow); font-weight: normal; }
-.hint button { margin-top: 10px; width: 100%; }
-.diag { font-size: 13px; color: var(--muted); line-height: 1.7; }
-.diag code { color: var(--mint); font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
-.raw li { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 8px 12px; }
-.raw li span:first-child { word-break: break-all; }
-/* 디버그 로그 */
-.dbgbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
-.dbgbar button { flex: 1 1 30%; font-size: 14px; padding: 10px 6px; }
-.dbgsum { font-size: 13px; line-height: 1.7; background: var(--bg); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.hint button { margin-top: 10px; }
+
+/* 목록 (기록) */
+ul.list { list-style: none; margin: 0; padding: 0; }
+ul.list li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 16px; font-size: 15px; border-bottom: 1px solid #ffffff0d; }
+ul.list li:last-child { border-bottom: 0; }
+ul.list li span:last-child { color: var(--muted); font-size: 12px; white-space: nowrap; }
+ul.list li.empty { color: var(--muted); justify-content: center; padding: 26px 16px; }
+.more { display: block; width: 100%; background: none; border: 0; color: var(--yellow); font-size: 14px; padding: 12px; border-top: 1px solid #ffffff0d; }
+
+/* 진단 */
+.dbgsum { font-size: 13px; line-height: 1.75; }
 .dbgsum .bad { color: #ff8a96; } .dbgsum .good { color: var(--green); } .dbgsum .mid { color: var(--yellow); }
-#dbg { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.45; max-height: 420px; }
-#dbg li { display: block; padding: 6px 10px; word-break: break-all; white-space: pre-wrap; }
-#dbg li.e { color: #ff8a96; background: #ff4d5e18; }
+#dbg { list-style: none; margin: 0; padding: 0; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.45; -webkit-user-select: text; user-select: text; }
+#dbg li { padding: 7px 14px; word-break: break-all; white-space: pre-wrap; border-bottom: 1px solid #ffffff0a; }
+#dbg li.e { color: #ff8a96; background: #ff4d5e14; }
 #dbg li.w { color: var(--yellow); }
 #dbg li.i { color: var(--fg); }
 #dbg li.t { color: var(--muted); }
 #dbg li.r { color: var(--mint); }
-.note { font-size: 13px; color: var(--muted); margin-top: 18px; line-height: 1.6; text-align: center; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.7; text-align: center; margin: 18px 8px 0; }
+.note b { color: var(--fg); font-weight: normal; }
 
-/* 화면 위 작은 알림 */
+/* ---------- 하단 탭 바 ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding-bottom: var(--safe-b); background: color-mix(in srgb, var(--bg2) 92%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid #ffffff14;
+}
+.tabbar .in { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); height: var(--bar-h); }
+.tab {
+  position: relative; background: none; border: 0; color: var(--muted); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px; font-size: 11px; padding: 0;
+}
+.tab .ti { font-size: 22px; line-height: 1; filter: grayscale(1) opacity(.6); transition: filter .2s, transform .2s; }
+.tab.active { color: var(--yellow); }
+.tab.active .ti { filter: none; transform: translateY(-1px) scale(1.08); }
+.tab .badge {
+  position: absolute; top: 7px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--alarm); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.tab .badge.dot { min-width: 10px; width: 10px; height: 10px; padding: 0; top: 10px; left: calc(50% + 10px); }
+
+/* ---------- 작은 알림 ---------- */
 .toasts {
-  position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
-  width: min(430px, calc(100vw - 24px)); z-index: 50; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  position: fixed; top: calc(10px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  width: min(440px, calc(100vw - 24px)); z-index: 50; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
 }
 .toast {
   pointer-events: auto; display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 18px;
-  background: #fff8e7; color: #1b2a49; box-shadow: 0 6px 0 #0005; border: 3px solid var(--mint);
+  background: #fff8e7; color: #1b2a49; box-shadow: 0 10px 30px #0006; border-left: 6px solid var(--mint);
   animation: drop .25s ease-out;
 }
 .toast.leave { animation: rise .25s ease-in forwards; }
-.toast .em { font-size: 30px; line-height: 1; flex: none; }
+.toast .em { font-size: 28px; line-height: 1; flex: none; }
 .toast .tx { flex: 1; min-width: 0; }
-.toast b { display: block; font-size: 18px; font-weight: normal; }
+.toast b { display: block; font-size: 17px; font-weight: normal; }
 .toast span { display: block; font-size: 13px; color: #4a5a80; margin-top: 2px; }
-.toast.c-try { border-color: var(--yellow); }
-.toast.c-fail { border-color: var(--alarm); }
-.toast.c-ok { border-color: var(--green); }
-.toast.c-info { border-color: #c4b5fd; }
+.toast.c-try { border-left-color: var(--yellow); }
+.toast.c-fail { border-left-color: var(--alarm); }
+.toast.c-ok { border-left-color: var(--green); }
+.toast.c-info { border-left-color: var(--violet); }
 .toast:nth-child(n+3) { display: none; }
 @keyframes drop { from { transform: translateY(-30px); opacity: 0; } }
 @keyframes rise { to { transform: translateY(-30px); opacity: 0; } }
 
-/* 큰 경보 화면 */
+/* ---------- 큰 경보 화면 ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 24px;
   background: radial-gradient(circle at 50% 35%, #a8283c, #3a0f1d 70%);
@@ -158,19 +207,22 @@ li span:last-child { color: var(--muted); font-size: 13px; white-space: nowrap; 
 .overlay.show { display: flex; animation: pulse 1s ease-in-out infinite alternate; }
 .overlay .box { text-align: center; max-width: 380px; }
 .overlay .em { font-size: 96px; line-height: 1; animation: shake .4s infinite; display: inline-block; }
-.overlay h2 { font-size: 34px; color: #fff; margin: 18px 0 8px; text-shadow: 0 3px 0 #0006; }
-.overlay p { font-size: 18px; margin: 0 0 6px; color: #ffd9dd; line-height: 1.5; }
-.overlay .when { font-size: 14px; color: #ffb3bb; margin-bottom: 26px; }
-.overlay button { background: #fff8e7; color: #a8283c; box-shadow: 0 5px 0 #0007; font-size: 20px; padding: 16px 36px; flex: none; }
+.overlay h2 { font-size: 32px; color: #fff; margin: 18px 0 8px; font-weight: normal; }
+.overlay p { font-size: 17px; margin: 0 0 6px; color: #ffd9dd; line-height: 1.5; }
+.overlay .when { font-size: 13px; color: #ffb3bb; margin-bottom: 26px; }
+.overlay button { border: 0; border-radius: 16px; background: #fff8e7; color: #a8283c; font-size: 19px; padding: 15px 36px; }
 .overlay.off { background: radial-gradient(circle at 50% 35%, #46609c, #141f38 70%); }
 .overlay.off .em { animation: none; }
 .overlay.off button { color: #1b2a49; }
 
 @keyframes shake { 25% { transform: translateX(-8px) rotate(-2deg); } 75% { transform: translateX(8px) rotate(2deg); } }
-@keyframes glow { 50% { box-shadow: 0 10px 0 #0005, 0 0 40px 12px #ff4d5e99; } }
+@keyframes glow { 50% { box-shadow: 0 8px 0 #0004, 0 0 40px 12px #ff4d5e99; } }
 @keyframes pulse { to { filter: brightness(1.25); } }
 @media (prefers-reduced-motion: reduce) {
-  .status.alarm .vault, .overlay .em, .overlay.show { animation: none; }
+  .status.alarm .vault, .overlay .em, .overlay.show, .page { animation: none; }
+}
+@media (min-width: 700px) {
+  .tabbar { left: 50%; right: auto; bottom: 16px; transform: translateX(-50%); width: 520px; border-radius: 22px; border: 1px solid #ffffff14; padding-bottom: 0; }
 }
 </style>
 </head>
@@ -187,87 +239,122 @@ li span:last-child { color: var(--muted); font-size: 13px; white-space: nowrap; 
   </div>
 </div>
 
-<main>
-  <div class="snacks" aria-hidden="true">🍪🍫🍬🍩</div>
-  <h1>도난 방지 간식 보관함</h1>
-  <div class="conn">
-    <span><i id="btDot" class="off"></i><span id="btTxt">블루투스 연결 안 됨</span></span>
-    <span><i id="boxDot"></i><span id="boxTxt">보관함 신호 없음</span></span>
+<header class="appbar">
+  <div class="in">
+    <h1><span aria-hidden="true">🍪</span>간식금고</h1>
+    <div class="chips">
+      <span class="chip"><i id="btDot" class="off"></i><span id="btTxt">연결 안 됨</span></span>
+      <span class="chip"><i id="boxDot"></i><span id="boxTxt">신호 없음</span></span>
+    </div>
   </div>
+</header>
 
-  <section class="status off" id="status" aria-live="assertive">
-    <div class="vault"><div class="door"><div class="icon" id="icon">🔗</div></div></div>
-    <div class="state" id="state">보관함을 연결하세요</div>
-    <div class="time" id="time"></div>
+<main>
+  <!-- ========== 홈 ========== -->
+  <section class="page" id="page-home" data-page="home">
+    <div class="card hero status off" id="status" aria-live="assertive">
+      <div class="vault"><div class="door"><div class="icon" id="icon">🔗</div></div></div>
+      <div class="state" id="state">보관함을 연결하세요</div>
+      <div class="time" id="time"></div>
+      <div class="dots" id="dots"></div>
+      <div class="dotsTxt" id="dotsTxt"></div>
+    </div>
+
+    <div class="hint hidden" id="hint"></div>
+
+    <div id="connectBox" class="card">
+      <button class="btn" id="connect">🔗 보관함 연결 (블루투스)</button>
+      <p class="note" style="margin-top:12px">PC·안드로이드 <b>Chrome</b>에서 열어 주세요 · 아이폰은 <b>Bluefy</b> 앱<br>약 10m 안에서, 한 번에 기기 1대만 연결돼요</p>
+    </div>
+
+    <div id="controlBox" class="hidden">
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" id="lock" disabled>🔒 잠그기</button>
+        <button class="btn ghost" id="ping" disabled>📡 상태 확인</button>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn ghost sm" id="quiet">🔕 소리 끄기</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="nPress">0</b><span>버튼 입력</span></div>
+      <div class="stat ok"><b id="nOk">0</b><span>해제 성공</span></div>
+      <div class="stat bad"><b id="nFail">0</b><span>해제 실패</span></div>
+    </div>
+
+    <div class="sec">최근 기록</div>
+    <div class="group">
+      <ul class="list" id="recent"></ul>
+      <button class="more" data-go="log">기록 모두 보기 ›</button>
+    </div>
   </section>
 
-  <div class="hint hidden" id="hint"></div>
+  <!-- ========== 기록 ========== -->
+  <section class="page" id="page-log" data-page="log">
+    <h2 class="page-title">기록</h2>
+    <div class="group"><ul class="list" id="log"></ul></div>
+    <button class="btn danger sm mt" id="wipe">기록 지우기</button>
+  </section>
 
-  <div class="row">
-    <button id="connect">🔗 보관함 연결 (블루투스)</button>
-    <button class="ghost hidden" id="disconnect" style="flex:0 0 110px">연결 끊기</button>
-  </div>
+  <!-- ========== 설정 ========== -->
+  <section class="page" id="page-settings" data-page="settings">
+    <h2 class="page-title">설정</h2>
 
-  <div class="dots" id="dots"></div>
-  <div class="dotsTxt" id="dotsTxt"></div>
+    <div class="sec">보관함</div>
+    <div class="group">
+      <div class="item"><span class="ic">📦</span><span class="tx">연결된 기기</span><span class="val" id="devLabel">없음</span></div>
+      <div class="item"><span class="ic">📶</span><span class="tx">연결 상태</span><span class="val" id="devState">연결 안 됨</span></div>
+    </div>
+    <button class="btn danger sm mt hidden" id="disconnect">연결 끊기</button>
 
-  <div class="stats">
-    <div class="stat"><b id="nPress">0</b><span>버튼 입력</span></div>
-    <div class="stat ok"><b id="nOk">0</b><span>해제 성공</span></div>
-    <div class="stat bad"><b id="nFail">0</b><span>해제 실패</span></div>
-  </div>
+    <div class="sec">어떤 일이 생기면 알려 줄까요?</div>
+    <div class="group" id="alertToggles"></div>
 
-  <div class="row">
-    <button id="lock" disabled>🔒 잠그기</button>
-    <button class="ghost" id="quiet">🔕 소리 끄기</button>
-  </div>
-  <div class="row">
-    <button class="ghost" id="ping" disabled>📡 보관함 확인</button>
-    <button class="ghost" id="gear" aria-label="설정" style="flex:0 0 56px">⚙️</button>
-  </div>
+    <div class="sec">어떻게 알려 줄까요?</div>
+    <div class="group">
+      <label class="item"><span class="ic">🔊</span><span class="tx">소리<small>경보는 사이렌처럼 크게</small></span><input type="checkbox" class="sw" data-opt="sound" checked></label>
+      <label class="item"><span class="ic">🗣️</span><span class="tx">말로 읽어 주기<small>"해제에 실패했어요"처럼 읽어 줘요</small></span><input type="checkbox" class="sw" data-opt="voice" checked></label>
+      <label class="item"><span class="ic">📳</span><span class="tx">진동<small>진동이 되는 휴대폰에서만</small></span><input type="checkbox" class="sw" data-opt="vibrate" checked></label>
+      <label class="item"><span class="ic">🔔</span><span class="tx">앱 밖 알림<small>다른 화면을 볼 때 (처음에 허용 필요)</small></span><input type="checkbox" class="sw" data-opt="push" checked></label>
+    </div>
 
-  <div class="card hidden" id="setcard">
-    <h2>설정</h2>
-    <h3>어떤 일이 생기면 알려 줄까요?</h3>
-    <div id="alertToggles"></div>
-
-    <h3>어떻게 알려 줄까요?</h3>
-    <label class="tg"><input type="checkbox" data-opt="sound" checked><span>🔊 소리<small>경보는 사이렌처럼 크게</small></span></label>
-    <label class="tg"><input type="checkbox" data-opt="voice" checked><span>🗣️ 말로 읽어 주기<small>"해제에 실패했어요"처럼 읽어 줘요</small></span></label>
-    <label class="tg"><input type="checkbox" data-opt="vibrate" checked><span>📳 진동<small>진동이 되는 휴대폰에서만</small></span></label>
-    <label class="tg"><input type="checkbox" data-opt="push" checked><span>🔔 앱 밖 알림<small>다른 화면을 보고 있을 때 알림 (처음에 허용 필요)</small></span></label>
-
+    <div class="sec">미리 보기</div>
     <div class="row">
-      <button class="ghost" id="testToast">알림 미리 보기</button>
-      <button class="ghost" id="testAlarm">경보 미리 보기</button>
+      <button class="btn ghost sm" id="testToast">알림 미리 보기</button>
+      <button class="btn ghost sm" id="testAlarm">경보 미리 보기</button>
     </div>
-  </div>
+    <p class="note">처음 한 번 화면을 터치해야 소리가 나요.<br>앱을 열어 둔 동안 보관함 신호를 실시간으로 받아요.</p>
+  </section>
 
-  <div class="card">
-    <h2>기록</h2>
-    <ul id="log"><li class="empty">아직 기록이 없어요.</li></ul>
-    <div class="row"><button class="ghost" id="wipe">기록 지우기</button></div>
-  </div>
-
-  <div class="card" id="dbgcard">
-    <h2>🛠 디버그 로그</h2>
-    <div class="dbgsum" id="dbgsum"></div>
-    <div class="dbgbar">
-      <button class="ghost" id="dbgCopy">📋 로그 복사</button>
-      <button class="ghost" id="dbgTest">🧪 응답 테스트</button>
-      <button class="ghost" id="dbgClear">🧹 지우기</button>
+  <!-- ========== 진단 ========== -->
+  <section class="page" id="page-debug" data-page="debug">
+    <h2 class="page-title">진단</h2>
+    <div class="card dbgsum" id="dbgsum"></div>
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn ghost sm" id="dbgCopy">📋 복사</button>
+      <button class="btn ghost sm" id="dbgTest">🧪 응답 테스트</button>
+      <button class="btn ghost sm" id="dbgClear">🧹 지우기</button>
     </div>
-    <ul id="dbg"></ul>
-  </div>
-
-  <p class="note">PC·안드로이드의 <b>Chrome</b>(또는 Edge)에서 열어 주세요.<br>아이폰은 App Store의 <b>Bluefy</b> 앱으로 이 주소를 열어야 해요.<br>블루투스는 약 10m 안에서, 한 번에 기기 1대만 연결돼요.</p>
+    <div class="group"><ul id="dbg"></ul></div>
+  </section>
 </main>
+
+<nav class="tabbar" aria-label="메뉴">
+  <div class="in">
+    <button class="tab" data-tab="home"><span class="ti">🏠</span>홈</button>
+    <button class="tab" data-tab="log"><span class="ti">📜</span>기록<span class="badge hidden" id="badgeLog"></span></button>
+    <button class="tab" data-tab="settings"><span class="ti">⚙️</span>설정</button>
+    <button class="tab" data-tab="debug"><span class="ti">🛠</span>진단<span class="badge dot hidden" id="badgeDbg"></span></button>
+  </div>
+</nav>
 
 <script>
 // ===================== 디버그 로그 (가장 먼저 실행) =====================
 var DBG = [];
 var DBG_MAX = 500;
 var DBG_T0 = Date.now();
+var dbgUnseen = false;
 var dbgStat = { connects: 0, drops: 0, retries: 0, lines: 0, sent: 0, errors: 0, lastErr: "" };
 function dbgTime(t) {
   var d = new Date(t);
@@ -285,7 +372,10 @@ function dbg(level, msg, data) {
   var line = { t: Date.now(), l: level, m: msg + (data !== undefined ? "  " + dbgStr(data) : "") };
   DBG.push(line);
   if (DBG.length > DBG_MAX) { DBG.shift(); }
-  if (level === "e") { dbgStat.errors++; dbgStat.lastErr = line.m; }
+  if (level === "e") {
+    dbgStat.errors++; dbgStat.lastErr = line.m;
+    if (typeof currentTab !== "undefined" && currentTab !== "debug") { dbgUnseen = true; if (typeof drawBadges === "function") { drawBadges(); } }
+  }
   try { (level === "e" ? console.error : level === "w" ? console.warn : console.log)("[vault " + dbgTime(line.t) + "] " + line.m); } catch (e) {}
   var ul = document.getElementById("dbg");
   if (!ul) { return; }
@@ -391,10 +481,13 @@ function timeLabel() {
 
 // ---------------- 기록 ----------------
 function renderLog() {
-  var ul = $("log");
+  fillLog($("log"), events.length);
+  fillLog($("recent"), 3);
+}
+function fillLog(ul, max) {
   ul.innerHTML = "";
-  if (events.length === 0) { ul.innerHTML = '<li class="empty">아직 기록이 없어요.</li>'; return; }
-  for (var i = events.length - 1; i >= 0; i--) {
+  if (events.length === 0) { ul.innerHTML = '<li class="empty">아직 기록이 없어요</li>'; return; }
+  for (var i = events.length - 1; i >= 0 && i >= events.length - max; i--) {
     var li = document.createElement("li");
     var a = document.createElement("span");
     var b = document.createElement("span");
@@ -410,6 +503,7 @@ function addLog(text) {
   if (events.length > 80) { events = events.slice(events.length - 80); }
   setItem("vb-log", JSON.stringify(events));
   renderLog();
+  if (currentTab !== "log") { unseenLog++; drawBadges(); }
 }
 
 // ---------------- 화면 ----------------
@@ -417,7 +511,7 @@ function setView(state) {
   var v = VIEWS[state];
   if (!v) { return; }
   currentState = state;
-  $("status").className = "status " + v.cls;
+  $("status").className = "card hero status " + v.cls;
   document.body.classList.toggle("alarm", state === "alarm");
   $("icon").textContent = v.icon;
   $("state").textContent = v.text;
@@ -427,7 +521,7 @@ function setView(state) {
 }
 function setOfflineView(icon, text) {
   currentState = "";
-  $("status").className = "status off";
+  $("status").className = "card hero status off";
   document.body.classList.remove("alarm");
   $("icon").textContent = icon;
   $("state").textContent = text;
@@ -450,11 +544,17 @@ function drawStats() {
   $("nOk").textContent = okCount;
   $("nFail").textContent = failCount;
 }
-function setBt(cls, text) { $("btDot").className = cls; $("btTxt").textContent = text; }
+function setBt(cls, text) {
+  $("btDot").className = cls;
+  $("btTxt").textContent = text.replace(/ · BBC micro:bit.*$/, "");   // 상단 칩은 짧게
+  $("devState").textContent = text;
+}
 function setBox(cls, text) { $("boxDot").className = cls; $("boxTxt").textContent = text; }
 function updateButtons() {
-  $("connect").classList.toggle("hidden", wantConnected);
+  $("connectBox").classList.toggle("hidden", wantConnected);
+  $("controlBox").classList.toggle("hidden", !wantConnected);
   $("disconnect").classList.toggle("hidden", !wantConnected);
+  $("devLabel").textContent = device ? devName() : "없음";
   $("ping").disabled = !connected;
   $("lock").disabled = !(connected && currentState === "open");
 }
@@ -465,8 +565,8 @@ function drawAlertToggles() {
   for (var i = 0; i < ALERT_ORDER.length; i++) {
     var id = ALERT_ORDER[i];
     var a = ALERTS[id];
-    html += '<label class="tg"><input type="checkbox" data-alert="' + id + '"' + (alertOn[id] !== false ? " checked" : "") + '>' +
-            '<span>' + a.em + " " + a.name + "<small>" + a.desc + "</small></span></label>";
+    html += '<label class="item"><span class="ic">' + a.em + '</span><span class="tx">' + a.name + "<small>" + a.desc + "</small></span>" +
+            '<input type="checkbox" class="sw" data-alert="' + id + '"' + (alertOn[id] !== false ? " checked" : "") + "></label>";
   }
   $("alertToggles").innerHTML = html;
 }
@@ -607,6 +707,7 @@ function showHint(html, buttonText, onClick) {
   if (buttonText) {
     var b = document.createElement("button");
     b.textContent = buttonText;
+    b.className = "btn sm";
     b.onclick = onClick;
     h.appendChild(b);
   }
@@ -618,7 +719,7 @@ function hideHint() { $("hint").classList.add("hidden"); }
 function boxSignal() {
   lastSeen = Date.now();
   boxWasOnline = true;
-  setBox("on", "보관함 신호 · 방금");
+  setBox("on", "신호 · 방금");
   hideHint();
   if (pingTimer) {
     clearTimeout(pingTimer);
@@ -844,7 +945,7 @@ function onDisconnected() {
     dbgStat.drops++;
     dbg("e", "블루투스 연결이 끊김 — 거리가 멀어졌거나, 마이크로비트 전원이 꺼졌거나, 리셋됐어요");
     setBt("off", "연결 끊김");
-    setBox("off", "보관함 신호 없음");
+    setBox("off", "신호 없음");
     setOfflineView("📡", "보관함 연결 끊김");
     addLog("📡 보관함 연결이 끊겼어요");
     if (boxWasOnline) {
@@ -899,7 +1000,7 @@ function disconnectBox() {
   boxWasOnline = false;
   lastSeen = 0;
   setBt("off", "블루투스 연결 안 됨");
-  setBox("", "보관함 신호 없음");
+  setBox("", "신호 없음");
   setOfflineView("🔗", "보관함을 연결하세요");
   $("time").textContent = "";
   addLog("🔌 연결을 끊었어요");
@@ -952,7 +1053,7 @@ setInterval(function () {
   var gap = Date.now() - lastSeen;
   if (gap < OFFLINE_AFTER) {
     var sec = Math.round(gap / 1000);
-    setBox("on", "보관함 신호 · " + (sec < 3 ? "방금" : sec + "초 전"));
+    setBox("on", "신호 · " + (sec < 3 ? "방금" : sec + "초 전"));
     return;
   }
   setBox("off", "신호 끊김 (" + Math.round(gap / 1000) + "초)");
@@ -971,7 +1072,6 @@ $("disconnect").onclick = disconnectBox;
 $("lock").onclick = function () { if (send("lock")) { addLog("📤 잠그기 명령을 보냈어요"); } };
 $("quiet").onclick = function () { stopSound(); $("overlay").className = "overlay"; };
 $("ping").onclick = askBox;
-$("gear").onclick = function () { $("setcard").classList.toggle("hidden"); };
 $("wipe").onclick = function () { events = []; setItem("vb-log", "[]"); renderLog(); };
 $("testToast").onclick = function () { alertUser("try", "미리 보기 — 잠긴 보관함에 비밀번호를 입력하기 시작했어요."); };
 $("testAlarm").onclick = function () { alertUser("alarm", "미리 보기 — 비밀번호가 연속으로 틀려서 입력이 막혔어요."); };
@@ -1050,6 +1150,44 @@ if ("serviceWorker" in navigator) {
     dbg("t", "서비스워커 등록됨 · scope=" + reg.scope);
   }).catch(function (e) { dbg("w", "서비스워커 등록 실패 (오프라인 실행만 안 됨)", e); });
 }
+
+// ---------------- 하단 탭 ----------------
+var currentTab = "home";
+var unseenLog = 0;
+function drawBadges() {
+  var bl = $("badgeLog");
+  bl.textContent = unseenLog > 99 ? "99+" : unseenLog;
+  bl.classList.toggle("hidden", unseenLog === 0);
+  $("badgeDbg").classList.toggle("hidden", !dbgUnseen);
+}
+function showTab(name) {
+  if (!$("page-" + name)) { name = "home"; }
+  currentTab = name;
+  var pages = document.querySelectorAll(".page");
+  for (var i = 0; i < pages.length; i++) { pages[i].classList.toggle("active", pages[i].getAttribute("data-page") === name); }
+  var tabs = document.querySelectorAll(".tab");
+  for (var j = 0; j < tabs.length; j++) {
+    var on = tabs[j].getAttribute("data-tab") === name;
+    tabs[j].classList.toggle("active", on);
+    if (on) { tabs[j].setAttribute("aria-current", "page"); } else { tabs[j].removeAttribute("aria-current"); }
+  }
+  if (name === "log") { unseenLog = 0; }
+  if (name === "debug") { dbgUnseen = false; }
+  drawBadges();
+  setItem("vb-tab", name);
+  window.scrollTo(0, 0);
+}
+document.addEventListener("click", function (e) {
+  var t = e.target.closest("[data-tab],[data-go]");
+  if (t) { showTab(t.getAttribute("data-tab") || t.getAttribute("data-go")); }
+});
+// 경보·해제 같은 중요한 일이 생기면 홈으로
+var _alertUser = alertUser;
+alertUser = function (id, detail) {
+  if ((id === "alarm" || id === "offline") && currentTab !== "home") { showTab("home"); }
+  _alertUser(id, detail);
+};
+showTab(getItem("vb-tab", "home"));
 
 // ---------------- 시작 ----------------
 drawAlertToggles();

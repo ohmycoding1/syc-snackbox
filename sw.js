@@ -1,7 +1,7 @@
 // 앱 파일을 저장해 두는 서비스 워커
 // - 화면(HTML)은 인터넷이 되면 항상 새 버전을 받아옴 → 고친 내용이 바로 반영됨
 // - 인터넷이 안 되면 저장해 둔 버전으로 열림
-var CACHE = "vault-v4-ble";
+var CACHE = "vault-v5-tabs";
 var FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {

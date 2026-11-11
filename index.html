@@ -695,7 +695,12 @@ function handleEvent(msg) {
     drawDots(0);
     addLog("↩️ 입력하던 비밀번호를 지웠어요 (A+B)");
   } else if (type === "boot") {
-    addLog("🔌 보관함이 켜졌어요");
+    if (dbgStat.connects > 1) {
+      dbg("e", "마이크로비트가 재시작됐어요 (비밀번호 초기화됨) — 마이크로비트에 오류 숫자(예: 020)가 떴다면 메모리 부족입니다. 그 숫자를 알려 주세요");
+      addLog("🔄 보관함이 다시 켜졌어요 (비밀번호를 다시 설정하세요)");
+    } else {
+      addLog("🔌 보관함이 켜졌어요");
+    }
   } else if (type === "hello") {
     dbg("i", "보관함이 인사함 (블루투스 통신 양방향 OK)");
   } else {

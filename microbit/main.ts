@@ -21,6 +21,8 @@
  *  - 열린 상태 : A = 다시 잠그기 / A+B = 비밀번호 새로 설정 (B는 무시)
  *  - 3번 연속 틀리면 30초 동안 경보(입력 잠금) + 웹앱에 경보 전송
  *  - 웹앱이 연결되면 LED 왼쪽 위 점이 켜짐
+ *  - 소리는 웹앱에서만 남 (블루투스와 소리를 같이 쓰면 메모리가 부족해 마이크로비트가
+ *    오류 화면을 띄우고 재시작되는 문제가 있어서 마이크로비트 소리는 뺐음)
  *
  * [웹앱과의 약속] 한 줄에 메시지 하나
  *  보관함 → 앱 : boot, hello, setup, pwset, locked, press:2/4, ok, fail:1,
@@ -49,6 +51,7 @@ let failCount = 0
 let alarmEndTime = 0
 let lastHeartbeat = 0
 let connected = false
+let bootSent = false          // 켜진 뒤 첫 연결 때 "boot"를 한 번 보냄 → 웹앱이 재시작을 알아챔
 
 let outQueue: string[] = []   // 보낼 메시지 대기열 (버튼 처리가 통신 때문에 멈추지 않도록)
 let keyQueue: string[] = []   // 눌린 버튼 대기열 (A, B, C=지우기)
@@ -129,7 +132,6 @@ function openBox() {
     failCount = 0
     sendLine("ok")
     sendState()
-    music.play(music.builtinPlayableSoundEffect(soundExpression.happy), music.PlaybackMode.InBackground)
     showModeIcon()
 }
 
@@ -148,7 +150,6 @@ function startAlarm() {
     alarmEndTime = input.runningTime() + ALARM_TIME
     sendLine("alarm")
     sendState()
-    music.play(music.builtinPlayableSoundEffect(soundExpression.mysterious), music.PlaybackMode.InBackground)
     showModeIcon()
 }
 
@@ -171,7 +172,6 @@ function checkPassword() {
         inputKeys = ""
         sendLine("fail:" + failCount)
         basic.showIcon(IconNames.Sad)
-        music.play(music.tonePlayable(131, music.beat(BeatFraction.Half)), music.PlaybackMode.InBackground)
         if (failCount >= MAX_FAIL) {
             startAlarm()
         } else {
@@ -250,6 +250,10 @@ bluetooth.startUartService()
 bluetooth.onBluetoothConnected(function () {
     connected = true
     outQueue = []
+    if (!bootSent) {
+        bootSent = true
+        sendLine("boot")
+    }
     sendLine("hello")
     sendState()
     sendLine("alive:" + modeName())

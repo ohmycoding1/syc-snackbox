@@ -113,6 +113,18 @@ li span:last-child { color: var(--muted); font-size: 13px; white-space: nowrap; 
 .diag code { color: var(--mint); font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
 .raw li { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 8px 12px; }
 .raw li span:first-child { word-break: break-all; }
+/* 디버그 로그 */
+.dbgbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.dbgbar button { flex: 1 1 30%; font-size: 14px; padding: 10px 6px; }
+.dbgsum { font-size: 13px; line-height: 1.7; background: var(--bg); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.dbgsum .bad { color: #ff8a96; } .dbgsum .good { color: var(--green); } .dbgsum .mid { color: var(--yellow); }
+#dbg { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.45; max-height: 420px; }
+#dbg li { display: block; padding: 6px 10px; word-break: break-all; white-space: pre-wrap; }
+#dbg li.e { color: #ff8a96; background: #ff4d5e18; }
+#dbg li.w { color: var(--yellow); }
+#dbg li.i { color: var(--fg); }
+#dbg li.t { color: var(--muted); }
+#dbg li.r { color: var(--mint); }
 .note { font-size: 13px; color: var(--muted); margin-top: 18px; line-height: 1.6; text-align: center; }
 
 /* 화면 위 작은 알림 */
@@ -241,11 +253,81 @@ li span:last-child { color: var(--muted); font-size: 13px; white-space: nowrap; 
     <div class="row"><button class="ghost" id="wipe">기록 지우기</button></div>
   </div>
 
+  <div class="card" id="dbgcard">
+    <h2>🛠 디버그 로그</h2>
+    <div class="dbgsum" id="dbgsum"></div>
+    <label class="tg"><input type="checkbox" id="dbgPkt"><span>통신 패킷까지 모두 기록<small>연결이 자꾸 끊길 때 켜 보세요 (keepalive 포함)</small></span></label>
+    <div class="dbgbar">
+      <button class="ghost" id="dbgCopy">📋 로그 복사</button>
+      <button class="ghost" id="dbgTest">🧪 왕복 테스트</button>
+      <button class="ghost" id="dbgClear">🧹 지우기</button>
+    </div>
+    <ul id="dbg"></ul>
+  </div>
+
   <p class="note">앱을 열어 둔 동안 보관함 신호를 실시간으로 받아요.<br>처음 한 번 화면을 터치해야 소리가 나요.</p>
 </main>
 
-<script src="mqtt.min.js"></script>
 <script>
+// ===================== 디버그 로그 (가장 먼저 실행) =====================
+var DBG = [];
+var DBG_MAX = 500;
+var DBG_T0 = Date.now();
+var dbgStat = { connects: 0, reconnects: 0, closes: 0, errors: 0, msgsMine: 0, msgsOther: 0, msgsCmdEcho: 0, sent: 0, lastErr: "" };
+function dbgTime(t) {
+  var d = new Date(t);
+  function z(n, l) { n = String(n); while (n.length < (l || 2)) { n = "0" + n; } return n; }
+  return z(d.getHours()) + ":" + z(d.getMinutes()) + ":" + z(d.getSeconds()) + "." + z(d.getMilliseconds(), 3);
+}
+function dbgStr(x) {
+  if (x === undefined) { return ""; }
+  if (x instanceof Error) { return x.name + ": " + x.message + (x.code !== undefined ? " (code " + x.code + ")" : "") + (x.stack ? "\n" + x.stack.split("\n").slice(0, 4).join("\n") : ""); }
+  if (typeof x === "string") { return x; }
+  try { return JSON.stringify(x); } catch (e) { return String(x); }
+}
+// level: e=오류, w=경고, i=정보, t=자세히, r=받은 신호
+function dbg(level, msg, data) {
+  var line = { t: Date.now(), l: level, m: msg + (data !== undefined ? "  " + dbgStr(data) : "") };
+  DBG.push(line);
+  if (DBG.length > DBG_MAX) { DBG.shift(); }
+  if (level === "e") { dbgStat.errors++; dbgStat.lastErr = line.m; }
+  try { (level === "e" ? console.error : level === "w" ? console.warn : console.log)("[vault " + dbgTime(line.t) + "] " + line.m); } catch (e) {}
+  dbgAppend(line);
+}
+function dbgAppend(line) {
+  var ul = document.getElementById("dbg");
+  if (!ul) { return; }   // 화면이 아직 없으면 나중에 한꺼번에 그림
+  var li = document.createElement("li");
+  li.className = line.l;
+  li.textContent = dbgTime(line.t) + " " + ({ e: "❌", w: "⚠️", i: "ℹ️", t: "·", r: "📥" }[line.l] || "") + " " + line.m;
+  ul.insertBefore(li, ul.firstChild);
+  while (ul.children.length > DBG_MAX) { ul.removeChild(ul.lastChild); }
+}
+window.addEventListener("error", function (e) {
+  if (e.target && e.target !== window && (e.target.src || e.target.href)) {
+    dbg("e", "파일을 불러오지 못함: " + (e.target.src || e.target.href));
+  } else {
+    dbg("e", "스크립트 오류: " + e.message + " @ " + (e.filename || "").split("/").pop() + ":" + e.lineno + ":" + e.colno, e.error);
+  }
+}, true);
+window.addEventListener("unhandledrejection", function (e) { dbg("e", "처리 안 된 Promise 오류", e.reason); });
+window.addEventListener("online", function () { dbg("i", "기기 네트워크: 온라인"); });
+window.addEventListener("offline", function () { dbg("e", "기기 네트워크: 오프라인 (와이파이/데이터 끊김)"); });
+document.addEventListener("visibilitychange", function () {
+  dbg(document.hidden ? "w" : "i", document.hidden ? "앱이 백그라운드로 감 — 휴대폰이 연결을 끊을 수 있어요" : "앱이 다시 화면에 나옴");
+});
+dbg("i", "앱 시작 · " + location.href);
+dbg("t", "브라우저: " + navigator.userAgent);
+dbg("t", "보안 연결(isSecureContext)=" + window.isSecureContext + " · 네트워크 onLine=" + navigator.onLine +
+    " · 서비스워커 지원=" + ("serviceWorker" in navigator) + " · 이미 서비스워커가 관리 중=" + !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+</script>
+<script src="mqtt.min.js" onerror="dbg('e','mqtt.min.js 를 불러오지 못함 — 파일이 같은 폴더에 올라갔는지 확인')"></script>
+<script>
+if (typeof mqtt === "undefined") {
+  dbg("e", "mqtt 라이브러리가 없어요 — 서버에 연결할 수 없어요");
+} else {
+  dbg("i", "mqtt 라이브러리 로드됨" + (mqtt.MqttClient && mqtt.MqttClient.VERSION ? " v" + mqtt.MqttClient.VERSION : ""));
+}
 // =====================================================================
 //  마이크로비트(BOX)와 주고받는 약속
 //   dlabbox/<ID>/event : boot, setup, pwset, locked, press:2/4, ok, fail:1,
@@ -259,6 +341,8 @@ var TOAST_TIME = 6000;        // 작은 알림이 떠 있는 시간(ms)
 var TAMPER_GAP = 60000;       // 경보 중 버튼 알림은 1분에 한 번만
 var DEFAULT_ID = "dlab-box-01";
 var DEFAULT_URL = "wss://broker.emqx.io:8084/mqtt";
+// 보관함 ID는 영문·숫자·-·_ 만 (공개 서버라 이상한 ID는 무시)
+var ID_RULE = /^[A-Za-z0-9_-]{1,40}$/;
 
 // 알림 종류: 그림, 제목, 설명, 색, 큰 화면 여부
 var ALERTS = {
@@ -292,7 +376,8 @@ function getJson(key, fallback) {
   try { return JSON.parse(getItem(key, "")) || fallback; } catch (e) { return fallback; }
 }
 
-var cfg = { id: getItem("vb-id", DEFAULT_ID), url: getItem("vb-url", DEFAULT_URL) };
+var savedId = getItem("vb-id", DEFAULT_ID);
+var cfg = { id: ID_RULE.test(savedId) ? savedId : DEFAULT_ID, url: getItem("vb-url", DEFAULT_URL) };
 var alertOn = getJson("vb-alerts", {});
 var optOn = getJson("vb-opts", {});
 var events = getJson("vb-log", []);
@@ -316,6 +401,12 @@ var rawList = [];
 var otherIds = {};   // 다른 ID로 들어오는 보관함 신호 (ID가 다를 때 찾아 주려고)
 
 function $(id) { return document.getElementById(id); }
+// 화면에 글자를 넣을 때 HTML로 해석되지 않게 바꿔 줌
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
 function topic(name) { return "dlabbox/" + cfg.id + "/" + name; }
 function fmt(t) {
   var d = new Date(t);
@@ -363,6 +454,7 @@ function setView(state) {
   if (state !== "locked") { drawDots(0); }
 }
 function setOfflineView(text) {
+  currentState = "";   // 신호가 돌아오면 alive 메시지로 화면이 다시 바뀌도록
   $("status").className = "status off";
   document.body.classList.remove("alarm");
   $("icon").textContent = "📡";
@@ -584,13 +676,13 @@ function addRaw(t, msg) {
 }
 function drawDiag() {
   var others = Object.keys(otherIds);
-  var html = "서버: <code>" + cfg.url + "</code><br>" +
-             "듣고 있는 주제: <code>" + topic("event") + "</code>, <code>" + topic("state") + "</code><br>" +
-             "명령 보내는 주제: <code>" + topic("cmd") + "</code><br>" +
+  var html = "서버: <code>" + esc(cfg.url) + "</code><br>" +
+             "듣고 있는 주제: <code>" + esc(topic("event")) + "</code>, <code>" + esc(topic("state")) + "</code><br>" +
+             "명령 보내는 주제: <code>" + esc(topic("cmd")) + "</code><br>" +
              "받은 신호: " + rawCount + "개" +
              (lastSeen ? " · 마지막 " + Math.round((Date.now() - lastSeen) / 1000) + "초 전" : "");
   if (others.length > 0) {
-    html += "<br>다른 ID로 오는 신호: <code>" + others.join(", ") + "</code>";
+    html += "<br>다른 ID로 오는 신호: <code>" + esc(others.join(", ")) + "</code>";
   }
   $("diag").innerHTML = html;
   var ul = $("raw");
@@ -613,15 +705,17 @@ function drawDiag() {
 
 // 다른 ID의 보관함 신호가 오면 알려 주기
 function foundOtherId(id) {
+  if (!ID_RULE.test(id)) { return; }
   var isNew = !otherIds[id];
   otherIds[id] = Date.now();
   drawDiag();
   if (isNew && Date.now() - lastSeen > 20000) {
-    showHint("<b>'" + id + "'</b> 보관함의 신호가 와요.<br>지금 앱은 <b>'" + cfg.id + "'</b>을(를) 보고 있어서 화면에 안 나와요. 마이크로비트 코드의 BOX_ID가 '" + id + "'인가요?",
+    showHint("<b>'" + esc(id) + "'</b> 보관함의 신호가 와요.<br>지금 앱은 <b>'" + esc(cfg.id) + "'</b>을(를) 보고 있어서 화면에 안 나와요. 마이크로비트 코드의 BOX_ID가 '" + id + "'인가요?",
       "'" + id + "' 보관함으로 바꾸기", function () { changeId(id); });
   }
 }
 function changeId(id) {
+  if (!ID_RULE.test(id)) { return; }
   cfg.id = id;
   setItem("vb-id", id);
   $("did").value = id;
@@ -709,23 +803,95 @@ function connect() {
   setOfflineView("상태 확인 중");
   $("time").textContent = "";
 
-  client = mqtt.connect(cfg.url, {
-    clientId: "pwa-" + Math.random().toString(16).slice(2, 10),
-    reconnectPeriod: 3000,
-    connectTimeout: 8000,
-    clean: true
-  });
-  client.on("connect", function () {
+  checkUrl(cfg.url);
+  if (typeof mqtt === "undefined") { setNet("off", "mqtt 라이브러리 없음"); return; }
+  var clientId = "pwa-" + Math.random().toString(16).slice(2, 10);
+  dbg("i", "서버 연결 시도 → " + cfg.url + " · clientId=" + clientId + " · 보관함 ID=" + cfg.id);
+  var startedAt = Date.now();
+  try {
+    client = mqtt.connect(cfg.url, {
+      clientId: clientId,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000,
+      keepalive: 30,
+      clean: true
+    });
+  } catch (e) {
+    dbg("e", "mqtt.connect 자체가 실패 (주소 형식 오류일 가능성)", e);
+    setNet("off", "서버 주소 오류");
+    return;
+  }
+  var me = client;
+  client.on("connect", function (connack) {
+    if (me !== client) { return; }
+    dbgStat.connects++;
+    me.everConnected = true;
+    me.connectedAt = Date.now();
+    dbg("i", "✅ 서버 연결 성공 (" + (Date.now() - startedAt) + "ms) · returnCode=" + (connack && (connack.returnCode !== undefined ? connack.returnCode : connack.reasonCode)) + " · sessionPresent=" + (connack && connack.sessionPresent));
     setNet("on", "서버 연결됨");
-    // 모든 보관함의 event를 듣고(ID가 달라도 찾아 주려고), 내 보관함 state를 들음
-    client.subscribe(["dlabbox/+/event", topic("state")]);
-    askBox();
+    // dlabbox 아래 모든 주제를 들음: 내 보관함 + 다른 ID 찾기 + 내가 보낸 명령이 서버에 도착했는지 확인
+    client.subscribe(["dlabbox/#"], { qos: 0 }, function (err, granted) {
+      if (err) { dbg("e", "구독 실패", err); return; }
+      for (var i = 0; i < (granted || []).length; i++) {
+        var g = granted[i];
+        dbg(g.qos === 128 ? "e" : "i", "구독 " + (g.qos === 128 ? "거부됨" : "완료") + ": " + g.topic + " (qos " + g.qos + ")");
+      }
+      askBox();
+    });
   });
-  client.on("reconnect", function () { setNet("mid", "다시 연결 중…"); });
-  client.on("offline", function () { setNet("off", "서버 연결 끊김"); });
-  client.on("error", function () { setNet("off", "서버 연결 오류"); });
-  client.on("message", function (t, payload) {
+  client.on("reconnect", function () {
+    if (me !== client) { return; }
+    dbgStat.reconnects++;
+    dbg("w", "서버에 다시 연결 시도 중… (" + dbgStat.reconnects + "번째)");
+    setNet("mid", "다시 연결 중…");
+  });
+  client.on("close", function () {
+    if (me !== client) { return; }
+    dbgStat.closes++;
+    if (!me.everConnected) {
+      dbg("e", "서버 접속 실패: 웹소켓 연결이 바로 닫혔어요 (" + (Date.now() - startedAt) + "ms) — " +
+        (navigator.onLine ? "주소/포트가 틀렸거나, 와이파이(학교·회사)가 이 포트를 막았을 수 있어요. 휴대폰 데이터로 시도해 보세요" : "기기가 오프라인이에요"));
+    } else {
+      dbg("w", "서버 연결이 닫힘 (연결 유지 " + Math.round((Date.now() - me.connectedAt) / 1000) + "초)" + (navigator.onLine ? "" : " — 기기가 오프라인이에요"));
+    }
+  });
+  client.on("offline", function () { if (me === client) { dbg("w", "MQTT 클라이언트 offline 상태"); setNet("off", "서버 연결 끊김"); } });
+  client.on("disconnect", function (pkt) { if (me === client) { dbg("e", "서버가 연결을 끊음 (DISCONNECT)", pkt && { reasonCode: pkt.reasonCode, properties: pkt.properties }); } });
+  client.on("error", function (err) {
+    if (me !== client) { return; }
+    dbg("e", "서버 연결 오류" + explainErr(err), err);
+    setNet("off", "서버 연결 오류");
+  });
+  client.on("end", function () { dbg("t", "이전 연결 종료(end) 완료"); });
+  client.on("packetsend", function (pkt) {
+    if (me === client && $("dbgPkt").checked) { dbg("t", "→ 보냄 " + pkt.cmd + (pkt.topic ? " " + pkt.topic : "") + (pkt.payload ? " \"" + pkt.payload + "\"" : "")); }
+  });
+  client.on("packetreceive", function (pkt) {
+    if (me === client && $("dbgPkt").checked && pkt.cmd !== "publish") { dbg("t", "← 받음 " + pkt.cmd + (pkt.returnCode !== undefined ? " rc=" + pkt.returnCode : "")); }
+  });
+  client.on("message", function (t, payload, packet) {
+    if (me !== client) { return; }
     var msg = payload.toString().trim();
+    var retained = packet && packet.retain;
+    if (t === topic("cmd")) {
+      dbgStat.msgsCmdEcho++;
+      dbg("i", "내가 보낸 명령이 서버를 거쳐 돌아옴: \"" + msg + "\" (서버 왕복 OK)");
+      return;
+    }
+    if (t === topic("debug")) {
+      if (dbgTest && msg === dbgTest.payload) {
+        dbg("i", "🧪 왕복 테스트 성공: 앱 → 서버 → 앱 " + (Date.now() - dbgTest.at) + "ms");
+        clearTimeout(dbgTest.timer); dbgTest = null;
+      }
+      return;
+    }
+    if (t === topic("state") || t === topic("event")) {
+      dbgStat.msgsMine++;
+      dbg("r", t + " = \"" + msg + "\"" + (retained ? " (서버에 저장돼 있던 값)" : ""));
+    } else {
+      dbgStat.msgsOther++;
+      dbg("t", "다른 주제: " + t + " = \"" + msg.slice(0, 80) + "\"");
+    }
     if (t === topic("state")) {
       addRaw(t, msg);
       handleState(msg);
@@ -733,17 +899,51 @@ function connect() {
       addRaw(t, msg);
       handleEvent(msg);
     } else {
-      var other = t.split("/")[1];
-      if (other) { foundOtherId(other); }
+      var parts = t.split("/");
+      if (parts.length === 3 && parts[2] === "event" && parts[1]) {
+        if (parts[1].toLowerCase() === cfg.id.toLowerCase()) {
+          dbg("e", "대소문자만 다른 ID로 신호가 와요: '" + parts[1] + "' (앱: '" + cfg.id + "') — 정확히 같게 맞추세요");
+        }
+        foundOtherId(parts[1]);
+      } else if (parts.length !== 3 || ["event", "state", "cmd", "debug"].indexOf(parts[2]) < 0) {
+        dbg("w", "약속에 없는 주제 형식: " + t + " — 마이크로비트 코드의 주제 이름을 확인하세요 (dlabbox/<ID>/event)");
+      }
     }
   });
+}
+// 주소가 올바른지 미리 검사
+function checkUrl(u) {
+  if (!/^wss?:\/\//.test(u)) {
+    dbg("e", "서버 주소가 ws:// 또는 wss:// 로 시작하지 않아요: " + u + " — 브라우저는 웹소켓(ws/wss)으로만 MQTT 연결 가능");
+  }
+  if (location.protocol === "https:" && /^ws:\/\//.test(u)) {
+    dbg("e", "https 페이지(GitHub Pages)에서는 ws:// 주소가 차단돼요 (Mixed Content). wss:// 주소를 쓰세요. 예: wss://broker.emqx.io:8084/mqtt");
+  }
+  if (/:1883\b|:8883\b/.test(u)) {
+    dbg("e", "1883/8883 은 마이크로비트용 TCP 포트예요. 브라우저는 웹소켓 포트(emqx: ws 8083, wss 8084)를 써야 해요");
+  }
+  if (/broker\.emqx\.io/.test(u) && !/\/mqtt\b/.test(u)) {
+    dbg("w", "broker.emqx.io 는 주소 끝에 /mqtt 경로가 필요해요");
+  }
+}
+function explainErr(err) {
+  var m = (err && (err.message || String(err))) || "";
+  if (/connack timeout|timeout/i.test(m)) { return " — 서버가 응답하지 않아요 (학교/회사 와이파이가 웹소켓 포트를 막았을 수 있음, 휴대폰 데이터로도 시도해 보세요)"; }
+  if (/Not authorized|Bad username|code 5|code 4/i.test(m)) { return " — 서버가 접속을 거부했어요 (아이디/비밀번호 필요)"; }
+  if (/Identifier rejected|code 2/i.test(m)) { return " — clientId 거부됨"; }
+  return "";
 }
 
 function send(cmd) {
   if (client && client.connected) {
-    client.publish(topic("cmd"), cmd);
+    dbgStat.sent++;
+    dbg("i", "명령 보냄 → " + topic("cmd") + " = \"" + cmd + "\"");
+    client.publish(topic("cmd"), cmd, function (err) {
+      if (err) { dbg("e", "명령 보내기 실패: " + cmd, err); }
+    });
     return true;
   }
+  dbg("e", "명령 \"" + cmd + "\"을 보내지 못함 — 서버에 연결돼 있지 않아요 (connected=" + !!(client && client.connected) + ")");
   addLog("⚠️ 서버 연결이 끊겨서 보내지 못했어요");
   return false;
 }
@@ -762,6 +962,7 @@ setInterval(function () {
   if (boxWasOnline) {
     boxWasOnline = false;
     setOfflineView("보관함 신호 끊김");
+    dbg("e", "보관함 신호 " + Math.round(gap / 1000) + "초 동안 없음 → 끊김 처리 · 서버 연결=" + !!(client && client.connected));
     addLog("📡 보관함 신호가 끊겼어요");
     alertUser("offline", "전원이 빠졌거나 와이파이가 끊겼을 수 있어요. 보관함을 확인하세요!");
   }
@@ -784,12 +985,15 @@ function askBox() {
   pingTimer = setTimeout(function () {
     pingTimer = null;
     if (!lastSeen) {
+      dbg("e", "보관함 응답 없음 (8초): '" + cfg.id + "' 에서 신호가 한 번도 안 옴. 다른 ID 신호=" + (Object.keys(otherIds).join(", ") || "없음") +
+          " · 내 명령 서버 왕복=" + dbgStat.msgsCmdEcho + "회 → " + (dbgStat.msgsCmdEcho > 0 ? "앱↔서버는 정상, 마이크로비트 쪽(와이파이/ID/주제) 문제" : "앱↔서버부터 확인 필요"));
       $("time").textContent = "보관함에서 아직 신호가 한 번도 안 왔어요";
       showHint("<b>확인해 보세요</b><br>① 마이크로비트 LED에 😊가 떴나요? (😕면 와이파이 연결 실패)<br>" +
-               "② 마이크로비트 코드의 BOX_ID와 ⚙️ 설정의 보관함 ID가 똑같나요? (지금: '" + cfg.id + "')<br>" +
+               "② 마이크로비트 코드의 BOX_ID와 ⚙️ 설정의 보관함 ID가 똑같나요? (지금: '" + esc(cfg.id) + "')<br>" +
                "③ 마이크로비트가 켜진 지 10초 넘게 지났나요? 10초마다 신호를 보내요.");
     } else {
       var ago = Math.round((Date.now() - lastSeen) / 1000);
+      dbg("w", "보관함이 ping 명령에 8초 동안 답하지 않음 (마지막 신호 " + ago + "초 전) — 마이크로비트가 " + topic("cmd") + " 를 구독하는지 확인");
       $("time").textContent = "확인 명령에 답이 없어요 · 마지막 신호 " + ago + "초 전";
       showHint("보관함 신호는 오고 있지만 <b>확인 명령</b>에는 답하지 않았어요.<br>" +
                "마이크로비트 코드를 최신 버전으로 다시 넣어 주세요. 그래도 상태는 10초마다 자동으로 바뀌어요.");
@@ -799,7 +1003,12 @@ function askBox() {
 $("ping").onclick = askBox;
 $("gear").onclick = function () { $("setcard").classList.toggle("hidden"); };
 $("save").onclick = function () {
-  cfg.id = $("did").value.trim() || DEFAULT_ID;
+  var newId = $("did").value.trim() || DEFAULT_ID;
+  if (!ID_RULE.test(newId)) {
+    alert("보관함 ID는 영문, 숫자, -, _ 만 쓸 수 있어요. (최대 40자)");
+    return;
+  }
+  cfg.id = newId;
   cfg.url = $("url").value.trim() || DEFAULT_URL;
   setItem("vb-id", cfg.id);
   setItem("vb-url", cfg.url);
@@ -819,7 +1028,12 @@ $("testAlarm").onclick = function () { alertUser("alarm", "미리 보기 — 비
 
 // ---------------- 화면 켜 두기 · 첫 터치 ----------------
 function keepAwake() {
-  try { if (navigator.wakeLock) { navigator.wakeLock.request("screen"); } } catch (e) {}
+  try {
+    if (navigator.wakeLock) {
+      navigator.wakeLock.request("screen").then(function () { dbg("t", "화면 꺼짐 방지 켜짐"); })
+        .catch(function (e) { dbg("t", "화면 꺼짐 방지 실패 (무시해도 됨): " + e.message); });
+    }
+  } catch (e) {}
 }
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState === "visible") { keepAwake(); }
@@ -834,8 +1048,59 @@ document.addEventListener("pointerdown", function () {
 }, { once: true });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(function () {});
+  navigator.serviceWorker.register("sw.js").then(function (reg) {
+    dbg("t", "서비스워커 등록됨 · scope=" + reg.scope);
+  }).catch(function (e) { dbg("w", "서비스워커 등록 실패 (오프라인 실행만 안 됨)", e); });
 }
+
+// ---------------- 디버그 화면 ----------------
+var dbgTest = null;
+function dbgSummary() {
+  var c = client && client.connected;
+  var gap = lastSeen ? Math.round((Date.now() - lastSeen) / 1000) : -1;
+  var others = Object.keys(otherIds);
+  var verdict;
+  if (typeof mqtt === "undefined") { verdict = '<span class="bad">mqtt.min.js 로드 실패</span>'; }
+  else if (!c) { verdict = '<span class="bad">앱 ↔ 서버 연결 안 됨</span> — 아래 빨간 줄 확인'; }
+  else if (gap < 0 && others.length) { verdict = '<span class="bad">보관함 ID 불일치</span> — 다른 ID(' + esc(others.join(", ")) + ')로 신호가 와요'; }
+  else if (gap < 0) { verdict = '<span class="mid">서버는 OK, 마이크로비트 신호가 서버에 안 옴</span> — 마이크로비트 와이파이·서버 주소·주제 확인'; }
+  else if (gap > OFFLINE_AFTER / 1000) { verdict = '<span class="bad">마이크로비트 신호 끊김</span> (' + gap + '초 전 마지막)'; }
+  else { verdict = '<span class="good">정상</span> — 마이크로비트 신호 ' + gap + '초 전'; }
+  $("dbgsum").innerHTML =
+    "진단: " + verdict + "<br>" +
+    "서버: " + (c ? '<span class="good">연결됨</span>' : '<span class="bad">끊김</span>') +
+    " · 연결 " + dbgStat.connects + " / 재시도 " + dbgStat.reconnects + " / 닫힘 " + dbgStat.closes + "<br>" +
+    "받은 신호: 내 보관함 " + dbgStat.msgsMine + " · 다른 주제 " + dbgStat.msgsOther + " · 내 명령 왕복 " + dbgStat.msgsCmdEcho + "/" + dbgStat.sent + "<br>" +
+    "오류 " + dbgStat.errors + "개" + (dbgStat.lastErr ? ' · 마지막: <span class="bad">' + esc(dbgStat.lastErr.slice(0, 120)) + "</span>" : "") + "<br>" +
+    "기기 네트워크: " + (navigator.onLine ? "온라인" : '<span class="bad">오프라인</span>') + " · 앱 켠 지 " + Math.round((Date.now() - DBG_T0) / 1000) + "초";
+}
+setInterval(dbgSummary, 1000);
+$("dbgCopy").onclick = function () {
+  var text = "== 간식금고 디버그 로그 ==\n" + $("dbgsum").innerText + "\n\n" +
+    DBG.map(function (l) { return dbgTime(l.t) + " [" + l.l + "] " + l.m; }).join("\n");
+  function fallback() {
+    var ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); showToast(ALERTS.pwset, "로그를 복사했어요"); } catch (e) { alert(text); }
+    ta.remove();
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function () { showToast({ em: "📋", name: "로그 복사 완료", color: "info" }, DBG.length + "줄 — 카톡 등에 붙여넣기 하세요"); }, fallback);
+  } else { fallback(); }
+};
+$("dbgClear").onclick = function () { DBG = []; $("dbg").innerHTML = ""; dbg("i", "로그를 지웠어요"); };
+// 앱 → 서버 → 앱 왕복 테스트 (마이크로비트와 상관없이 서버 연결만 확인)
+$("dbgTest").onclick = function () {
+  if (!client || !client.connected) { dbg("e", "🧪 왕복 테스트 불가: 서버에 연결돼 있지 않아요"); return; }
+  if (dbgTest) { clearTimeout(dbgTest.timer); }
+  var payload = "debug-" + Date.now();
+  dbgTest = { at: Date.now(), payload: payload, timer: setTimeout(function () {
+    dbg("e", "🧪 왕복 테스트 실패: 5초 안에 내 메시지가 돌아오지 않음 (구독 또는 서버 문제)");
+    dbgTest = null;
+  }, 5000) };
+  dbg("i", "🧪 왕복 테스트 시작 → " + topic("debug") + " (마이크로비트에는 보내지 않아요)");
+  client.publish(topic("debug"), payload, function (err) { if (err) { dbg("e", "🧪 테스트 메시지 보내기 실패", err); } });
+};
 
 // ---------------- 시작 ----------------
 $("did").value = cfg.id;
